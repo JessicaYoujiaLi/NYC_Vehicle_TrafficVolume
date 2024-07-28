@@ -18,7 +18,7 @@ The dataset should be named as Automated_Traffic_Volume_Counts.csv, and should b
 4. Dash App: A Dash web application is created to visualize the traffic volume density on a map.
 
 ## Runing the Script:
-To run the Dash application, execute the script: python app.py.   
+To run the Dash application, execute the script: nyc_vehicle app.py on terminal.
 The app will be available at http://127.0.0.1:8050/ by default.
 
 
