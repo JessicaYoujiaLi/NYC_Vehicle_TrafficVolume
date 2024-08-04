@@ -18,9 +18,11 @@ The dataset should be named as Automated_Traffic_Volume_Counts.csv, and should b
 4. Dash App: A Dash web application is created to visualize the traffic volume density on a map.
 
 ## Runing the Script:
-To run the Dash application, make sure the dataset is renamed, and alongside with script nyc_vehicle.py is put under the same folder.
-Open the directory with IDE of your preference(I used VSCode), execute the script with python command in the terminal.: python nyc_vehicle.py
-The app will be available at http://127.0.0.1:8050/ by default.
+
+1. Install all the dependencies as listed in the requirement.txt, using command: pip install -r requirements.txt
+2. Make sure the dataset filed is renamed, and alongside with script nyc_vehicle.py is put under the same folder.
+3. Open the directory with IDE of your preference(I used VSCode), execute the script with python command in the terminal: python nyc_vehicle.py
+4. The app will be available at http://127.0.0.1:8050/ by default.
 
 
 
