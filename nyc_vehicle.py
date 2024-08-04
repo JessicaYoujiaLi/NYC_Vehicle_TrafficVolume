@@ -33,7 +33,7 @@ df_new = df_2022.groupby(
 
 # Take the average value of vol for the same location across the year
 df_aggregated = df_new.groupby(
-    ['RequestID', 'SegmentID', 'Yr', 'M', 'HH', 'street', 'Direction', 'Latitude', 'Longitude']
+    ['RequestID', 'Boro', 'Yr', 'M', 'HH', 'SegmentID', 'street', 'fromSt', 'toSt','Direction', 'Latitude', 'Longitude']
 ).agg({'Vol': 'mean'}).reset_index()
 
 # Calculate global min and max for 'Vol'
