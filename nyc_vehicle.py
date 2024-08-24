@@ -8,7 +8,9 @@ from shapely import wkt
 
 # Load the dataset
 df = pd.read_csv("Automated_Traffic_Volume_Counts.csv")
-df_2022 = df[df['Yr'] == 2022]
+
+# Filter for the years 2017 to 2022
+df = df[df['Yr'].between(2017, 2022)]
 
 # Define source and target CRS
 source_crs = 'epsg:2263'  # NAD83 / New York Long Island
@@ -19,21 +21,35 @@ transformer = Transformer.from_crs(source_crs, target_crs, always_xy=True)
 
 def convert_wkt_to_lat_lon(wkt_str):
     """Convert WKT string to latitude and longitude."""
-    point = wkt.loads(wkt_str)
-    longitude, latitude = transformer.transform(point.x, point.y)
-    return latitude, longitude
+    if pd.notnull(wkt_str):  # Ensure the WKT string is not null
+        try:
+            point = wkt.loads(wkt_str)
+            longitude, latitude = transformer.transform(point.x, point.y)
+            return latitude, longitude
+        except Exception as e:
+            print(f"Error converting WKT: {e}")
+            return None, None
+    else:
+        return None, None
 
 # Apply the function to the DataFrame and create new columns
-df_2022[['Latitude', 'Longitude']] = df_2022['WktGeom'].apply(lambda x: pd.Series(convert_wkt_to_lat_lon(x)))
+df[['Latitude', 'Longitude']] = df['WktGeom'].apply(lambda x: pd.Series(convert_wkt_to_lat_lon(x)))
 
-# Group by the relevant columns and sum the 'Vol' column
-df_new = df_2022.groupby(
+# Drop any rows where conversion failed (both Latitude and Longitude are None)
+df = df.dropna(subset=['Latitude', 'Longitude'])
+
+# Group by the relevant columns
+df_grouped = df.groupby(
     ['RequestID', 'Boro', 'Yr', 'M', 'D', 'HH', 'SegmentID', 'street', 'fromSt', 'toSt', 'Direction', 'Latitude', 'Longitude']
 ).agg({'Vol': 'sum'}).reset_index()
 
 # Take the average value of vol for the same location across the year
-df_aggregated = df_new.groupby(
+df_new = df_grouped.groupby(
     ['RequestID', 'Boro', 'Yr', 'M', 'HH', 'SegmentID', 'street', 'fromSt', 'toSt','Direction', 'Latitude', 'Longitude']
+).agg({'Vol': 'mean'}).reset_index()
+
+df_aggregated = df_new.groupby(
+    ['RequestID', 'Boro', 'Yr', 'HH', 'SegmentID', 'street', 'fromSt', 'toSt','Direction', 'Latitude', 'Longitude']
 ).agg({'Vol': 'mean'}).reset_index()
 
 # Calculate global min and max for 'Vol'
@@ -46,9 +62,15 @@ app = Dash(__name__)
 app.layout = html.Div([
     html.Div([
         dcc.Dropdown(
+            id='year-dropdown',
+            options=[{'label': str(year), 'value': year} for year in sorted(df_aggregated['Yr'].unique())],
+            value=df_aggregated['Yr'].min(),
+            clearable=False
+        ),
+        dcc.Dropdown(
             id='hour-dropdown',
-            options=[{'label': f'{hour}:00', 'value': hour} for hour in df_aggregated['HH'].unique()],
-            value=df_aggregated['HH'].min(),
+            options=[{'label': f'{hour}:00', 'value': hour} for hour in sorted(df_aggregated['HH'].unique())],
+            value=min(df_aggregated['HH'].unique()),
             clearable=False
         )
     ]),
@@ -57,25 +79,27 @@ app.layout = html.Div([
 
 @app.callback(
     Output('density-map', 'figure'),
-    [Input('hour-dropdown', 'value')]
+    [Input('year-dropdown', 'value'),
+     Input('hour-dropdown', 'value')]
 )
-def update_map(selected_hour):
-    filtered_df = df_aggregated[df_aggregated['HH'] == selected_hour]
-    fig = px.density_mapbox(
+def update_map(selected_year, selected_hour):
+    filtered_df = df_aggregated[(df_aggregated['Yr'] == selected_year) & (df_aggregated['HH'] == selected_hour)]
+    fig = px.scatter_mapbox(
         filtered_df,
         lat='Latitude',  # Latitude coordinates
         lon='Longitude',  # Longitude coordinates
-        z='Vol',  # Use the aggregated volume as the intensity
-        radius=20,  # Increased radius to make points more visible
+        color='Vol',  # Use the volume as the color scale
+        size='Vol',  # Set size of markers proportional to the volume
+        size_max=15,  # Maximum size of the markers
         center=dict(lat=40.7128, lon=-74.0060),  # Center of the map (New York City)
         zoom=9,  # Initial zoom level of the map
-        opacity=0.9,  # Set minimum opacity to make points less transparent
-        color_continuous_scale=[[0, "lightgreen"], [0.25, "green"],[0.5, "yellow"],[0.75, "orange"],[1, "red"]],  # Custom green-to-yellow-to-red color scale
+        opacity=1.0,  # Set opacity to 1.0 for non-transparent colors
+        color_continuous_scale=[[0, "lightgreen"], [0.25, "green"], [0.5, "yellow"], [0.75, "orange"], [1, "red"]],  # Custom green-to-yellow-to-red color scale
         range_color=(global_min_vol, global_max_vol),  # Set range for consistent color scale
         mapbox_style="carto-positron",  # Map style for the background
         hover_name='street',  # Display 'street' column on hover for more information
-        hover_data={'RequestID': True, 'Vol': True, 'Yr': True,'M': True },  # Include additional hover data
-        title=f'NYC Vehicle Location Density for Hour {selected_hour}:00 in 2022'  # Title of the plot
+        hover_data={'Vol': True},  # Include relevant data on hover
+        title=f'NYC Vehicle Location Density for Hour {selected_hour}:00 in {selected_year}'  # Title of the plot
     )
     fig.update_layout(margin=dict(l=0, r=0, t=30, b=10))
 
@@ -86,4 +110,4 @@ def update_map(selected_hour):
 
 # Run the app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, port=8051)
